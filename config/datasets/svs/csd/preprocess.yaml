@@ -1,0 +1,93 @@
+# | valid total files: 50, total duration: 324.262s, max duration: 14.600s
+# | test total files: 50, total duration: 311.587s, max duration: 13.012s
+# | train total files: 1123, total duration: 7010.387s, max duration: 19.038s
+speaker: csd
+
+num_mel_bins: 128
+num_linear_bins: 1025
+raw_sample_rate: 48000
+sample_rate: 24000
+max_wav_value: 32768.0
+hop_size: 300  # For 24000Hz, 300 ~= 12.5 ms (0.0125 * sample_rate)
+win_size: 1200  # For 24000Hz, 1200 ~= 50 ms (If None, win_size: fft_size) (0.05 * sample_rate)
+fft_size: 2048  # Extra window size is filled with 0 paddings to match this parameter
+fmin: 20
+fmax: 12000  # To be increased/reduced depending on data.
+f0_min: 50
+f0_max: 1250
+f0_bins: 300
+f0_resolution: 1
+griffin_lim_iters: 30
+pitch_extractor: parselmouth
+num_spk: 1
+mel_vmin: -7
+mel_vmax: 12
+loud_norm: false
+
+# Prerprocess arguments
+raw_data_dir: './data/source/svs/csd'
+processed_data_dir: './data/preprocessed/svs/csd'
+binary_data_dir: './data/binarize/svs/csd'
+preprocess_cls: config.datasets.svs.csd.preprocess.CSDPreprocessor
+binarizer_cls: preprocessor.base_binarizer.BaseBinarizer
+preprocess_args:
+  nsample_per_mfa_group: 1000
+  # text process
+  use_text: true
+  text_processor: ko_sing
+  use_mfa: false
+  with_phsep: true
+  reset_phone_dict: false
+  reset_word_dict: true
+  reset_spk_dict: true
+  add_eos_bos: true
+  # data-specific process
+  use_midi: true
+  divided: true
+  DEFAULT_TEMPO: 120
+  pos_resolution: 16  # per beat (quarter note)
+  max_durations: 8  # 2 ** 8 * beat
+  max_ts_denominator: 6  # x/1 x/2 x/4 ... x/64
+  max_notes_per_bar: 2  # 1/64 ... 128/64
+  max_note_dur: 5.0
+  beat_note_factor: 4  # In MIDI format a note is always 4 beats
+  filter_symbolic: false
+  filter_symbolic_ppl: 16
+  melody: true
+  max_bar: 2
+  melody_num: 0
+  min_sil_dur: 8  # 64th note * min_sir_dur (now 8th note)
+  num_frame: 3
+  # mfa
+  mfa_group_shuffle: false
+  mfa_offset: 0.02
+  # wav processors
+  wav_processors: [sox_resample]
+  save_sil_mask: true
+  vad_max_silence_length: 12
+binarization_args:
+  shuffle: true
+  # text settings
+  min_text: 6
+  # note settings
+  max_durations: 8  # 2 ** 8 * beat
+  pos_resolution: 16  # per beat (quarter note)
+  tempo_range: [16, 256]
+  # wav process
+  with_wav: false
+  with_midi_align: true
+  with_mfa_align: false
+  with_spk_embed: false
+  with_f0: true
+  with_f0cwt: false
+  with_spk_f0_norm: false
+  with_linear: false
+  with_mel: false
+  trim_eos_bos: false
+  # dataset range settings
+  dataset_range: 'index'  # index|title
+  train_range: [ 100, -1 ]
+  test_range: [ 0, 50 ]
+  valid_range: [ 50, 100 ]
+pitch_key: pitch
+note_range: [ 21, 128 ]

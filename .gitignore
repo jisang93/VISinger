@@ -1,0 +1,15 @@
+# mypy
+__pycache__/
+*/__pycache__/
+# checkpoints
+/checkpoints/*
+!/checkpoints/.gitkeep
+# infer
+/infer_out/*
+# data
+/data/*
+!/data/.gitkeep
+# tmp
+tmp/*
+# Sheel file
+*.sh
