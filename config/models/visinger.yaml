@@ -102,5 +102,5 @@ eval_max_batches: 50
 ####################
 # Datasets
 ####################
-ds_workers: 4
+ds_workers: 0
 endless_ds: false  # If want to use exponentialLR with decay, should be `false` here

@@ -5,6 +5,7 @@ from modules.rel_transformer import RelativeEncoder
 
 
 class PitchPredictor(nn.Module):
+    """ Pitch predictor for VISinger. """
     def __init__(self, in_dim, filter_channels, n_heads, n_layers, kernel_size, p_dropout, gin_channels, out_dim=2):
         super().__init__()
         # Pitch Predictor
@@ -19,9 +20,10 @@ class PitchPredictor(nn.Module):
 
 
 class PhonemePredictor(nn.Module):
+    """ Phoneme predictor for VISinger. """
     def __init__(self, dict_size, hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout):
         super().__init__()
-        # Pitch Predictor
+        # Phoneme predictor
         self.phoneme_predictor = RelativeEncoder(hidden_channels, filter_channels, n_heads, n_layers=n_layers,
                                                  kernel_size=kernel_size, p_dropout=p_dropout)
         self.ph_proj = nn.Conv1d(hidden_channels, dict_size, 1)

@@ -2,7 +2,6 @@
 import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from models.commons.align_ops import expand_states
 from modules.rel_transformer import RelativeEncoder, SinusoidalPositionalEmbedding
@@ -150,7 +149,7 @@ class WaveNet(torch.nn.Module):
         for i in range(n_layers):
             dilation = dilation_rate ** i
             padding = int((kernel_size * dilation - dilation) / 2)
-            in_layer = torch.nn.Conv1d(hidden_channels, 2*hidden_channels, kernel_size,
+            in_layer = torch.nn.Conv1d(hidden_channels, 2 * hidden_channels, kernel_size,
                                         dilation=dilation, padding=padding)
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)

@@ -15,8 +15,6 @@ fmin: 20
 fmax: 12000  # To be increased/reduced depending on data.
 f0_min: 50
 f0_max: 1250
-f0_bins: 300
-f0_resolution: 1
 griffin_lim_iters: 30
 pitch_extractor: parselmouth
 num_spk: 1
@@ -90,4 +88,4 @@ binarization_args:
   test_range: [ 0, 50 ]
   valid_range: [ 50, 100 ]
 pitch_key: pitch
-note_range: [ 21, 128 ]
+note_range: [ 12, 128 ]

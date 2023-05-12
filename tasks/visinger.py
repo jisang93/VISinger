@@ -111,7 +111,7 @@ class VISingerTask(SpeechBaseTask):
             sample["tgt_mel"] = self.mel_fn(sample["wavs"])  # [Batch, mel_bins, T_len]
             tgt_slice_mel = slice_segments(sample["tgt_mel"], output["ids_slice"], hparams["segment_size"]) # [Batch,  mel_bins, T_slice]
             output["mel_out"] = mel_out = self.mel_fn(output["wav_out"].squeeze(1))  # [Batch, mel_bins, T_slice]
-            self.add_mel_loss(mel_out, tgt_slice_mel, losses)
+            self.add_mel_loss(mel_out.transpose(1, 2), tgt_slice_mel.transpose(1, 2), losses)
             # Pitch losses
             if hparams["use_pitch_embed"]:
                 self.add_pitch_loss(output, sample, losses)
@@ -125,14 +125,18 @@ class VISingerTask(SpeechBaseTask):
             return output
     
     def add_pitch_loss(self, output, sample, losses):
-        mel2ph = sample["mel2ph"]  # [B, T_mels]
         f0 = sample['f0']
-        nonpadding = (mel2ph != 0).float()
-        p_pred = output["f0_pred"]
-        assert p_pred[..., 0].shape == f0.shape
-        f0_pred = p_pred[:, :, 0]
-        losses["pitch"] = (F.mse_loss(f0_pred.float(), f0, reduction="none") * nonpadding).sum() \
-                           / nonpadding.sum() * hparams["lambda_pitch"]
+        uv = sample["uv"]
+        nonpadding = (sample["mel2ph"] != 0).float()  # [B, T_mels]
+        p_pred = output['f0_pred']
+        assert p_pred[..., 0].shape == f0.shape, f"| f0_diff: {f0.shape}, pred_diff: {p_pred.shape}"
+        # Loss for voice/unvoice flag
+        losses["uv"] = (F.binary_cross_entropy_with_logits(p_pred[:, :, 1], uv, reduction='none') * nonpadding).sum() \
+                           / nonpadding.sum() * hparams['lambda_uv']
+        nonpadding = nonpadding * (uv == 0).float()
+        # Loss for f0 difference
+        losses["f0"] = (F.l1_loss(p_pred[:, :, 0], f0, reduction="none") * nonpadding).sum() \
+                            / nonpadding.sum() * hparams["lambda_f0"]
 
     def add_ctc_loss(self, output, sample, losses):
         ph_pred = output["ph_pred"].float().permute(2, 0, 1)  # [T_mel, Batch, Dict_size]

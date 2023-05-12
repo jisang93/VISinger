@@ -41,7 +41,7 @@ class MelSpectrogramFixed(torch.nn.Module):
 def torch_wav2spec(wav_fn, fft_size, hop_size, win_length, num_mels, fmin, fmax, sample_rate):
     """ Waveform to linear-spectrogram and mel-sepctrogram. """
     # Read wavform
-    wav, sr = load_wav_to_torch(wav_fn, hop_size, train=False)
+    wav, sr = load_wav_to_torch(wav_fn, hop_size, slice_train=False)
     if sr != sample_rate:
         raise ValueError(f"{sr} SR doesn't match target {sample_rate} SR")
     if torch.min(wav) < -1.:

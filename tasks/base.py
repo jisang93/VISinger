@@ -225,6 +225,7 @@ class SpeechBaseTask(BaseTask):
     # losses
     ###########################
     def add_mel_loss(self, mel_out, target, losses, postfix=""):
+        """ Input shape must be [Batch, T_len, Num_mels] """
         for loss_name, lambd in self.mel_losses.items():
             losses[f"mel_{loss_name}{postfix}"] = getattr(self, f"{loss_name}_loss")(mel_out, target) * lambd
 

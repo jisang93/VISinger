@@ -41,10 +41,9 @@ class VISinger(nn.Module):
         self.embed_positions = SinusoidalPositionalEmbedding(self.hidden_size, 0, init_size=DEFAULT_MAX_TARGET_POSITIONS)
         # Pitch predictor
         if hparams["use_pitch_embed"]:
-            self.pitch_embed = Embedding(300, self.hidden_size, 0)
             self.pitch_predictor = PitchPredictor(self.hidden_size, hparams["ffn_filter_channels"], hparams["num_heads"], 
                                                   n_layers=hparams["pitch_predictor_layers"], kernel_size=hparams['ffn_kernel_size'],
-                                                  p_dropout=hparams["p_dropout"], gin_channels=hparams["gin_channels"])
+                                                  p_dropout=hparams["p_dropout"], gin_channels=hparams["gin_channels"], out_dim=2)
         # Phoneme predictor
         if hparams["use_phoneme_pred"]:
             self.phoneme_predictor = PhonemePredictor(ph_dict_size, self.hidden_size, hparams["ffn_filter_channels"], hparams["num_heads"], 
@@ -52,7 +51,7 @@ class VISinger(nn.Module):
                                                       p_dropout=hparams["p_dropout"])
         # Frame prior network
         self.frame_prior = FramePriorNetwork(self.hidden_size, hparams["ffn_filter_channels"], hparams["num_heads"], hparams["frame_prior_layers"],
-                                             hparams["ffn_kernel_size"], p_dropout=hparams["p_dropout"], gin_channels=self.hidden_size)
+                                             hparams["ffn_kernel_size"], p_dropout=hparams["p_dropout"], gin_channels=1)
 
         ####################
         # Posterior encoder
@@ -69,31 +68,26 @@ class VISinger(nn.Module):
                                  hparams["dec_dilation_sizes"], hparams["upsample_rates"], hparams["initial_upsample_channels"],
                                  hparams["upsample_kernel_sizes"], gin_channels=hparams["gin_channels"])
 
-    def forward(self, text_tokens, pitch_tokens, dur_tokens, mel2ph, spk_embed=None, spk_id=None, f0=None, mel=None,
-                infer=False, **kwargs):
+    def forward(self, text_tokens, pitch_tokens, dur_tokens, mel2ph, spk_embed=None, spk_id=None, f0=None, uv=None,
+                mel=None, infer=False, **kwargs):
         ret = {}
         # Encoder
         tgt_nonpadding = (mel2ph > 0).float().unsqueeze(1)
         prior_inp = self.text_encoder(text_tokens, pitch_tokens, dur_tokens, mel2ph)  # [Batch, Hidden, T_len]
         prior_inp = prior_inp * tgt_nonpadding
-        
         # Positional encoding
         if self.use_pos_embed:
             pos_in = prior_inp.transpose(1, 2)[..., 0]
             positions = self.embed_positions(prior_inp.shape[0], prior_inp.shape[2], pos_in)
             prior_inp = prior_inp + positions.transpose(1, 2)
-        
         # Multi-speaker settings        
         spk_emb = self.speaker_embedding(spk_embed, spk_id).transpose(1, 2)
-        
         # Pitch prediction
         cond_pitch = None
         if self.hparams["use_pitch_embed"]:
-            cond_pitch = self.forward_pitch(prior_inp, f0, mel2ph, spk_emb, tgt_nonpadding.transpose(1, 2), ret)  # [Batch, Hidden, T_len]
-
+            cond_pitch = self.forward_pitch(prior_inp, f0, uv, spk_emb, tgt_nonpadding, ret)  # [Batch, Hidden, T_len]
         # Frame prior network
         mu_p, logs_p = self.frame_prior(prior_inp, tgt_nonpadding, cond_pitch)
-
         if not infer:
             # Posterior encoder
             z_q, _, logs_q = self.posterior_encoder(mel.transpose(1, 2), tgt_nonpadding, g=spk_emb)
@@ -126,22 +120,19 @@ class VISinger(nn.Module):
             speaker_embed = speaker_embed + self.spk_id_proj(spk_id)[:, None, :]
         return speaker_embed
     
-    def forward_pitch(self, pitch_pred_inp, f0, mel2ph, spk_emb, tgt_nonpadding, ret):
+    def forward_pitch(self, pitch_inp, f0, uv, spk_emb, tgt_nonpadding, ret):
         # Pitch prediction
-        pitch_padding = mel2ph == 0
         if self.hparams['predictor_grad'] != 1:
-            pitch_pred_inp = pitch_pred_inp.detach() + \
-                             self.hparams['predictor_grad'] * (pitch_pred_inp - pitch_pred_inp.detach())
-        ret['f0_pred'] = pitch_pred = self.pitch_predictor(pitch_pred_inp, tgt_nonpadding.transpose(1, 2), spk_emb)
-        # Teacher Forcing
+            pitch_inp = pitch_inp.detach() + self.hparams['predictor_grad'] * (pitch_inp - pitch_inp.detach())
+        ret['f0_pred'] = pitch_pred = self.pitch_predictor(pitch_inp, tgt_nonpadding, spk_emb)
+        # Teacher forcing settings
         if f0 is None:
             f0 = pitch_pred[:, :, 0]
-        f0_denorm = denorm_f0(f0, None, pitch_padding=pitch_padding)
-        pitch = f0_to_coarse(f0_denorm)  # start from 0 [B, T_txt]
-        ret['f0_denorm'] = f0_denorm
-        ret['f0_denorm_pred'] = denorm_f0(pitch_pred[:, :, 0], None, pitch_padding=pitch_padding)
-        pitch_embed = self.pitch_embed(pitch)
-        return pitch_embed * tgt_nonpadding
+            v = (pitch_pred[:, :, 1] <= 0)  # consider voiced part
+        else:
+            v = (uv == 0)
+        f0 = (f0 * v).unsqueeze(1) * tgt_nonpadding
+        return f0  # using log_f0
 
 
 class MultiPeriodDiscriminator(nn.Module):
